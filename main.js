@@ -31,8 +31,8 @@ const DISTRIBUTIONS = {
         },
         inDomain: (x, z) => true,
         getTz: (x, z) => (z + 4) / 8,
-        heightScale: 8,
-        gridSize: 8
+        heightScale: 14,
+        physicalSize: 4.8
     },
     'paraboloid': {
         name: 'Paraboloid',
@@ -55,7 +55,7 @@ const DISTRIBUTIONS = {
             return (z + bound) / (2 * bound);
         },
         heightScale: 15,
-        gridSize: 4.2
+        physicalSize: 4.2
     }
 };
 
@@ -85,16 +85,6 @@ function getCanvasHeight() {
 
 const camera = new THREE.PerspectiveCamera(45, getCanvasWidth() / getCanvasHeight(), 0.1, 100);
 
-function updateCameraPosition() {
-    const isMobile = window.innerWidth <= 768;
-    if (isMobile) {
-        camera.position.set(0, 16, 26);
-    } else {
-        camera.position.set(0, 10, 14);
-    }
-}
-updateCameraPosition();
-
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(getCanvasWidth(), getCanvasHeight());
 renderer.setPixelRatio(window.devicePixelRatio);
@@ -102,7 +92,17 @@ container.appendChild(renderer.domElement);
 
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
-controls.target.set(0, 0, 0);
+
+function updateCameraPosition() {
+    const isMobile = window.innerWidth <= 768;
+    if (isMobile) {
+        camera.position.set(0, 12, 19);
+    } else {
+        camera.position.set(0, 6.5, 11);
+    }
+    controls.target.set(0, 0, 0);
+}
+updateCameraPosition();
 
 // Lighting
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
@@ -123,7 +123,7 @@ function createDistribution(distKey, offsetX, prefix) {
     const axesHelper = new THREE.AxesHelper(3);
     group.add(axesHelper);
     
-    const gridHelper = new THREE.GridHelper(dist.gridSize, 20, 0x475569, 0x1e293b);
+    const gridHelper = new THREE.GridHelper(dist.physicalSize, 20, 0x475569, 0x1e293b);
     gridHelper.position.y = -0.01;
     group.add(gridHelper);
     
@@ -138,15 +138,18 @@ function createDistribution(distKey, offsetX, prefix) {
     
     const labelTex = new THREE.CanvasTexture(canvas);
     const labelMat = new THREE.MeshBasicMaterial({ map: labelTex, transparent: true });
-    const labelGeo = new THREE.PlaneGeometry(dist.gridSize, dist.gridSize * (64/256));
+    const labelGeo = new THREE.PlaneGeometry(dist.physicalSize, dist.physicalSize * (64/256));
     const labelMesh = new THREE.Mesh(labelGeo, labelMat);
-    labelMesh.position.set(0, -0.05, dist.gridSize/2 + 1);
+    labelMesh.position.set(0, -0.05, dist.physicalSize/2 + 1);
     labelMesh.rotation.x = -Math.PI / 2;
     group.add(labelMesh);
     
     // Continuous Solid Volume using BoxGeometry
-    // This creates top, bottom, and side faces!
-    const baseGeo = new THREE.BoxGeometry(dist.gridSize, 1, dist.gridSize, CONFIG.segments, 1, CONFIG.segments);
+    const baseGeo = new THREE.BoxGeometry(dist.physicalSize, 1, dist.physicalSize, CONFIG.segments, 1, CONFIG.segments);
+    
+    // Helper to map physical to mathematical coords
+    const mapX = (px) => dist.domainX[0] + ((px + dist.physicalSize/2) / dist.physicalSize) * (dist.domainX[1] - dist.domainX[0]);
+    const mapZ = (pz) => dist.domainZ[0] + ((pz + dist.physicalSize/2) / dist.physicalSize) * (dist.domainZ[1] - dist.domainZ[0]);
     
     // Crop triangles outside the mathematical domain
     const positions = baseGeo.attributes.position;
@@ -168,7 +171,7 @@ function createDistribution(distKey, offsetX, prefix) {
         const bx = positions.getX(b), bz = positions.getZ(b);
         const cx = positions.getX(c), cz = positions.getZ(c);
         
-        if (dist.inDomain(ax, az) && dist.inDomain(bx, bz) && dist.inDomain(cx, cz)) {
+        if (dist.inDomain(mapX(ax), mapZ(az)) && dist.inDomain(mapX(bx), mapZ(bz)) && dist.inDomain(mapX(cx), mapZ(cz))) {
             newIndices.push(a, b, c);
         }
     }
@@ -183,30 +186,35 @@ function createDistribution(distKey, offsetX, prefix) {
     let maxPdf = 0;
     for (let i = 0; i < positions.count; i++) {
         if (positions.getY(i) > 0) { // Only sample max from top vertices
-            maxPdf = Math.max(maxPdf, dist.joint(positions.getX(i), positions.getZ(i)));
+            const px = positions.getX(i);
+            const pz = positions.getZ(i);
+            maxPdf = Math.max(maxPdf, dist.joint(mapX(px), mapZ(pz)));
         }
     }
     
     const singleColor = new THREE.Color(0x3b82f6); // Solid blue for 2D plane
     
     for (let i = 0; i < positions.count; i++) {
-        const x = positions.getX(i);
-        const z = positions.getZ(i);
+        const px = positions.getX(i);
+        const pz = positions.getZ(i);
         const origY = positions.getY(i);
+        
+        const mathX = mapX(px);
+        const mathZ = mapZ(pz);
         
         let initY = 0;
         let targetY = 0;
         let c = new THREE.Color(0,0,0);
         
-        const jointVal = dist.joint(x, z);
+        const jointVal = dist.joint(mathX, mathZ);
         
         if (origY > 0) {
             // Top Vertices: Take the height of the PDF
             initY = Math.max(jointVal * dist.heightScale, 0.005); // Tiny base to prevent degenerate faces
             
             // Target: Map to the filled area under the marginal PDF
-            const tz = dist.getTz(x, z);
-            targetY = tz * dist.marginal(x) * dist.heightScale;
+            const tz = dist.getTz(mathX, mathZ);
+            targetY = tz * dist.marginal(mathX) * dist.heightScale;
             
             c = getColor(jointVal, maxPdf);
         } else {
@@ -220,11 +228,11 @@ function createDistribution(distKey, offsetX, prefix) {
         
         positions.setY(i, initY);
         
-        initPositions[i*3] = x;
+        initPositions[i*3] = px;
         initPositions[i*3+1] = initY;
-        initPositions[i*3+2] = z;
+        initPositions[i*3+2] = pz;
         
-        targetPositions[i*3] = x;
+        targetPositions[i*3] = px;
         targetPositions[i*3+1] = targetY;
         targetPositions[i*3+2] = 0; // Compress along Z axis
         
@@ -253,7 +261,7 @@ function createDistribution(distKey, offsetX, prefix) {
     group.add(surface);
     
     // Outline plane for Marginal PDF background
-    const planeGeo = new THREE.PlaneGeometry(dist.gridSize, dist.heightScale * 3);
+    const planeGeo = new THREE.PlaneGeometry(dist.physicalSize, dist.heightScale * 3);
     const planeMat = new THREE.MeshBasicMaterial({ 
         color: 0xffffff, 
         side: THREE.DoubleSide, 
@@ -261,7 +269,8 @@ function createDistribution(distKey, offsetX, prefix) {
         opacity: 0.05 
     });
     const projectionPlane = new THREE.Mesh(planeGeo, planeMat);
-    projectionPlane.position.set(0, (dist.heightScale * 3) / 2, -0.05); 
+    // Adjusted plane height to match scaled models
+    projectionPlane.position.set(0, (dist.heightScale * 0.4), -0.05); 
     group.add(projectionPlane);
     
     scene.add(group);
@@ -363,9 +372,9 @@ function animate() {
     renderer.render(scene, camera);
 }
 
-// Create both distributions side by side, slightly closer
-createDistribution('gaussian', -4.5, 'gaussian');
-createDistribution('paraboloid', 4.5, 'paraboloid');
+// Create both distributions side by side, closer together to maximize size
+createDistribution('gaussian', -3.8, 'gaussian');
+createDistribution('paraboloid', 3.8, 'paraboloid');
 
 animate();
 
