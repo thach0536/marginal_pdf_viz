@@ -96,9 +96,9 @@ controls.enableDamping = true;
 function updateCameraPosition() {
     const isMobile = window.innerWidth <= 768;
     if (isMobile) {
-        camera.position.set(0, 12, 19);
+        camera.position.set(0, 7.5, 12.5); // Much closer for mobile
     } else {
-        camera.position.set(0, 6.5, 11);
+        camera.position.set(0, 6, 9.5); // Closer for desktop too
     }
     controls.target.set(0, 0, 0);
 }
@@ -372,9 +372,9 @@ function animate() {
     renderer.render(scene, camera);
 }
 
-// Create both distributions side by side, closer together to maximize size
-createDistribution('gaussian', -3.8, 'gaussian');
-createDistribution('paraboloid', 3.8, 'paraboloid');
+// Create both distributions side by side, very close together to maximize size
+createDistribution('gaussian', -2.6, 'gaussian');
+createDistribution('paraboloid', 2.6, 'paraboloid');
 
 animate();
 
