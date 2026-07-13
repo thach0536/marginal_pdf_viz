@@ -122,3 +122,39 @@ h1 {
     background-color: var(--secondary-hover);
     transform: translateY(-2px);
 }
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+    #canvas-container {
+        width: 100vw;
+        height: 50vh;
+        left: 0;
+        right: auto;
+    }
+    
+    .ui-container {
+        width: 100vw;
+        height: 50vh;
+        top: 50vh;
+        left: 0;
+        border-radius: 0;
+        border: none;
+        border-top: 1px solid var(--panel-border);
+        padding: 1.5rem;
+        overflow-y: auto;
+        /* Increase padding bottom in case of mobile browser UI bars */
+        padding-bottom: 3rem; 
+    }
+    
+    .ui-container h1 {
+        font-size: 1.3rem;
+    }
+    
+    .ui-container .description {
+        font-size: 0.85rem;
+    }
+    
+    .controls-row {
+        flex-direction: row;
+    }
+}

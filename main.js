@@ -74,14 +74,29 @@ scene.background = new THREE.Color(0x0f172a);
 scene.fog = new THREE.FogExp2(0x0f172a, 0.05);
 
 function getCanvasWidth() {
-    return Math.max(window.innerWidth - 400, 400);
+    const isMobile = window.innerWidth <= 768;
+    return isMobile ? window.innerWidth : Math.max(window.innerWidth - 400, 400);
 }
 
-const camera = new THREE.PerspectiveCamera(45, getCanvasWidth() / window.innerHeight, 0.1, 100);
-camera.position.set(0, 10, 14);
+function getCanvasHeight() {
+    const isMobile = window.innerWidth <= 768;
+    return isMobile ? window.innerHeight * 0.5 : window.innerHeight;
+}
+
+const camera = new THREE.PerspectiveCamera(45, getCanvasWidth() / getCanvasHeight(), 0.1, 100);
+
+function updateCameraPosition() {
+    const isMobile = window.innerWidth <= 768;
+    if (isMobile) {
+        camera.position.set(0, 16, 26);
+    } else {
+        camera.position.set(0, 10, 14);
+    }
+}
+updateCameraPosition();
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(getCanvasWidth(), window.innerHeight);
+renderer.setSize(getCanvasWidth(), getCanvasHeight());
 renderer.setPixelRatio(window.devicePixelRatio);
 container.appendChild(renderer.domElement);
 
@@ -333,9 +348,12 @@ function setupControls(dist) {
 // Window Resize Handling
 window.addEventListener('resize', () => {
     const newWidth = getCanvasWidth();
-    camera.aspect = newWidth / window.innerHeight;
+    const newHeight = getCanvasHeight();
+    
+    updateCameraPosition();
+    camera.aspect = newWidth / newHeight;
     camera.updateProjectionMatrix();
-    renderer.setSize(newWidth, window.innerHeight);
+    renderer.setSize(newWidth, newHeight);
 });
 
 // Render Loop
